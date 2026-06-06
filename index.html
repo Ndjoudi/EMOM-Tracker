@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0D0D0F">
+<title>EMOM Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiRU1PTSBUcmFja2VyIiwic2hvcnRfbmFtZSI6IkVNT00iLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzBEMEQwRiIsInRoZW1lX2NvbG9yIjoiIzBEMEQwRiJ9">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{background:#0D0D0F;font-family:'DM Sans','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+  input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  input[type=number]{-moz-appearance:textfield}
+  ::-webkit-scrollbar{display:none}
+</style>
+
+<!-- ── Librairies CDN ── -->
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/lucide@0.475.0/dist/umd/lucide.js"></script>
+
+<!-- ── Utils (JS pur, pas de JSX) ── -->
+<script src="src/utils/storage.js"></script>
+<script src="src/utils/audio.js"></script>
+<script src="src/utils/helpers.js"></script>
+<script src="src/styles.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ── Composants (JSX compilé par Babel) ── -->
+<script type="text/babel" src="src/components/Icons.jsx"></script>
+<script type="text/babel" src="src/components/Modal.jsx"></script>
+<script type="text/babel" src="src/components/ExHistoryTable.jsx"></script>
+
+<!-- ── Écrans ── -->
+<script type="text/babel" src="src/screens/HomeScreen.jsx"></script>
+<script type="text/babel" src="src/screens/WorkoutScreen.jsx"></script>
+<script type="text/babel" src="src/screens/EditRoutineScreen.jsx"></script>
+<script type="text/babel" src="src/screens/ExLibScreen.jsx"></script>
+<script type="text/babel" src="src/screens/HistoryScreen.jsx"></script>
+<script type="text/babel" src="src/screens/StatsScreen.jsx"></script>
+<script type="text/babel" src="src/screens/RecapScreen.jsx"></script>
+<script type="text/babel" src="src/screens/TransferScreen.jsx"></script>
+<script type="text/babel" src="src/screens/CoachScreen.jsx"></script>
+<script type="text/babel" src="src/screens/ProfileScreen.jsx"></script>
+
+<!-- ── App principale ── -->
+<script type="text/babel" src="src/App.jsx"></script>
+</body>
+</html>
