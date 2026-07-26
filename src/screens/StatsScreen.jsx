@@ -5,10 +5,6 @@ const IC  = window.IC;
 const thS = window.thS;
 
 window.StatsScreen = function StatsScreen({ history, onBack }) {
-  const [period, setPeriod]       = useStateSt('seances');
-  const [metric, setMetric]       = useStateSt('charge');
-  const chartRef  = useRefSt(null);
-  const chartInst = useRefSt(null);
   const [goals, setGoals]         = useStateSt(() => window.load(window.SK.goals) || {});
   const [showGoalForm, setShowGoalForm] = useStateSt(false);
   const [gKg, setGKg]             = useStateSt('');
@@ -88,25 +84,6 @@ window.StatsScreen = function StatsScreen({ history, onBack }) {
   const pctGoal    = goal && first ? Math.min(100, Math.round((curKg - (rawData[0]?.maxKg||0)) / (goal.kg - (rawData[0]?.maxKg||0)) * 100)) : 0;
   const deadlineLabel = goal && goal.date ? new Date(goal.date).toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' }) : '';
 
-  useEffectSt(() => {
-    if (!chartRef.current || grouped.length === 0) return;
-    if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null; }
-    const color = metric === 'charge' ? '#0D7A8A' : '#22C55E';
-    const datasets = [{ data: grouped.map(d => metric==='charge' ? d.maxKg : d.vol), borderColor: color, backgroundColor: color+'22', fill: true, tension: 0.35, pointRadius: 5, pointBackgroundColor: grouped.map((d,i) => (metric==='charge' && i===grouped.length-1 && isPR) ? '#22C55E' : color), borderWidth: 2, label: 'Réel' }];
-    let labels = grouped.map(d => d.label);
-    if (metric === 'charge' && targetCurve.length > 0) {
-      const allMap = new Map();
-      grouped.forEach(d => allMap.set(d.label, { real: d.maxKg, target: null, date: d.date }));
-      targetCurve.forEach(t => { if (!allMap.has(t.label)) allMap.set(t.label, { real: null, target: t.kg, date: t.date }); else allMap.get(t.label).target = t.kg; });
-      const sorted = [...allMap.entries()].sort((a,b) => a[1].date - b[1].date);
-      labels = sorted.map(e => e[0]); datasets[0].data = sorted.map(e => e[1].real);
-      datasets.push({ data: sorted.map(e => e[1].target), borderColor: '#22C55E', borderWidth: 2, borderDash: [6,4], pointRadius: sorted.map(e => e[1].target !== null ? 3 : 0), pointBackgroundColor: '#22C55E', fill: false, tension: 0.2, label: 'Cible', spanGaps: false });
-    }
-    const minY = Math.min(...(grouped.map(d=>d.maxKg).filter(Boolean))) - 3;
-    const maxY = goal ? Math.max(goal.kg + 5, ...grouped.map(d=>d.maxKg)) : undefined;
-    chartInst.current = new Chart(chartRef.current, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { if (ctx.parsed.y === null) return null; return ctx.dataset.label === 'Cible' ? 'Cible: '+ctx.parsed.y+' kg' : metric==='charge' ? ctx.parsed.y+' kg' : 'Vol. '+ctx.parsed.y; }}}}, scales: { x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666', font: { size: 10 }, maxRotation: 45 } }, y: { min: metric==='charge' ? minY : undefined, max: metric==='charge' && maxY ? maxY : undefined, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666', font: { size: 11 }, callback: v => metric==='charge' ? v+' kg' : v } } } } });
-    return () => { if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null; } };
-  }, [JSON.stringify(grouped), metric, JSON.stringify(goal)]);
 
   function saveGoal() {
     const kg = parseFloat(gKg); const reps = parseInt(gReps);
@@ -119,8 +96,6 @@ window.StatsScreen = function StatsScreen({ history, onBack }) {
     setShowGoalForm(true);
   }
 
-  const btnP = (p, lbl) => <button onClick={() => setPeriod(p)} style={{ background: period===p?'#1E1E22':'transparent', border: period===p?'1px solid #333':'1px solid transparent', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', color:period===p?'#fff':'#555' }}>{lbl}</button>;
-  const btnM = (m, lbl, c) => <button onClick={() => setMetric(m)} style={{ background: metric===m?c+'22':'transparent', border: metric===m?'1px solid '+c:'1px solid #222', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', color:metric===m?c:'#555' }}>{lbl}</button>;
   const diffStyle = v => ({ fontSize:11, marginTop:2, color: v>0?'#22C55E':v<0?'#EF4444':'#F59E0B' });
   const diffText  = (v, unit) => v===null?'':(v>0?'▲ +':v<0?'▼ ':'= ')+v+unit+' vs préc.';
 
@@ -134,10 +109,7 @@ window.StatsScreen = function StatsScreen({ history, onBack }) {
 
       {selEx && grouped.length > 0 && (
         <div style={S.card}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
-            <div style={{ display:'flex', gap:4 }}>{btnP('seances','Séances')}{btnP('semaines','Semaines')}{btnP('mois','Mois')}</div>
-            <div style={{ display:'flex', gap:6 }}>{btnM('charge','Charge','#0D7A8A')}{btnM('volume','Volume','#22C55E')}</div>
-          </div>
+          <div style={{ marginBottom:14 }}><window.ExComboChart exName={selEx} hist={history} goal={goal} height={210}/></div>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
             <div style={{ background:'#111113', borderRadius:10, padding:'10px 12px' }}><div style={{ fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Charge max</div><div style={{ fontSize:20, fontWeight:700 }}>{last.maxKg} kg{isPR && <span style={{ background:'#22C55E22', color:'#22C55E', fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:6, marginLeft:6 }}>PR</span>}</div>{chargeDiff !== null && <div style={diffStyle(chargeDiff)}>{diffText(chargeDiff,' kg')}</div>}</div>
@@ -145,10 +117,6 @@ window.StatsScreen = function StatsScreen({ history, onBack }) {
             <div style={{ background:'#111113', borderRadius:10, padding:'10px 12px' }}><div style={{ fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Séances / sem.</div><div style={{ fontSize:20, fontWeight:700 }}>{freqLabel}</div></div>
             <div style={{ background:'#111113', borderRadius:10, padding:'10px 12px' }}><div style={{ fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Progression vol.</div><div style={{ fontSize:20, fontWeight:700, color:totalProg>=0?'#22C55E':'#EF4444' }}>{totalProg>=0?'+':''}{totalProg}%</div><div style={{ fontSize:11, color:'#555', marginTop:2 }}>sur la période</div></div>
           </div>
-
-          {goal && metric==='charge' && (<div style={{ display:'flex', gap:16, marginBottom:8, flexWrap:'wrap' }}><div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#888' }}><div style={{ width:20, height:2, background:'#0D7A8A', borderRadius:2 }}/> Réel</div><div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#888' }}><div style={{ width:20, borderTop:'2px dashed #22C55E' }}/> Cible</div></div>)}
-
-          <div style={{ position:'relative', height:180, marginBottom:14 }}><canvas ref={chartRef}/></div>
 
           <div style={{ borderTop:'1px solid #222', paddingTop:14, marginTop:4 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>

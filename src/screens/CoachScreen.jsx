@@ -50,13 +50,54 @@ window.CoachScreen = function CoachScreen({ history, profile, routines, exLib, o
   }
 
   function renderResponse(text) {
-    return text.split('\n').filter(l => l.trim()).map((line, i) => {
-      const clean = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/^#+\s*/, '').trim();
-      const isSection = /^[✅⚠️🎯📊]/.test(clean);
-      return (<div key={i} style={{ padding: isSection ? '10px 0 4px' : '3px 0', borderTop: isSection && i > 0 ? '1px solid #222' : 'none', marginTop: isSection && i > 0 ? 8 : 0 }}>
-        <span style={{ fontSize: isSection ? 13 : 14, fontWeight: isSection ? 700 : 400, color: isSection ? S.blue : clean.includes('→') ? '#E8E8EA' : '#aaa', fontFamily: clean.includes('→') ? 'monospace' : 'inherit' }}>{clean}</span>
-      </div>);
+    if (!deepMode) {
+      // Split by newlines OR by ", ExName →" pattern (when AI puts all on one line)
+      const normalized = text.replace(/,\s*(?=[A-ZÉÈÀÂÊÎÔÛa-zéèàâêîôû][^→]{1,40}→)/g, '\n');
+      const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
+      return lines.map((line, i) => {
+        const clean = line.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+        const m = clean.match(/^(.+?)\s*→\s*(.+)$/);
+        if (!m) return <div key={i} style={{ fontSize:13, color:'#666', padding:'4px 0' }}>{clean}</div>;
+        const name   = m[1].trim();
+        const detail = m[2].trim();
+        return (
+          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'11px 0', borderBottom: i < lines.length-1 ? '1px solid #1E1E22' : 'none', gap:12 }}>
+            <span style={{ fontSize:13, color:'#E8E8EA', fontWeight:600, flex:1 }}>{name}</span>
+            <span style={{ fontSize:13, color:S.blue, fontWeight:700, fontFamily:'monospace', flexShrink:0 }}>{detail}</span>
+          </div>
+        );
+      });
+    }
+    // Bilan complet — rendu en sections visuelles
+    const lines = text.split('\n').map(l => l.replace(/\*\*(.*?)\*\*/g, '$1').replace(/^#+\s*/, '').trim()).filter(Boolean);
+    const sectionColors = { '✅': '#22C55E', '⚠': '#F59E0B', '🎯': S.blue, '📊': '#8B5CF6', '🔥': '#F97316' };
+    const getSectionColor = l => { for (const [k,v] of Object.entries(sectionColors)) if (l.startsWith(k)) return v; return null; };
+    // Group lines into sections
+    const sections = [];
+    let cur = null;
+    lines.forEach(line => {
+      const color = getSectionColor(line);
+      if (color) { cur = { title: line, color, items: [] }; sections.push(cur); }
+      else if (cur) cur.items.push(line);
+      else sections.push({ title: null, color: null, items: [line] });
     });
+    return sections.map((sec, si) => (
+      <div key={si} style={{ marginBottom: si < sections.length-1 ? 10 : 0 }}>
+        {sec.title && (
+          <div style={{ fontSize:12, fontWeight:700, color: sec.color, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6, paddingBottom:6, borderBottom:'1px solid #1E1E22' }}>{sec.title}</div>
+        )}
+        {sec.items.map((item, ii) => {
+          const m = item.match(/^(.+?)\s*→\s*(.+)$/);
+          if (m) return (
+            <div key={ii} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom: ii < sec.items.length-1 ? '1px solid #1A1A1A' : 'none', gap:12 }}>
+              <span style={{ fontSize:13, color:'#E8E8EA', fontWeight:600, flex:1 }}>{m[1].trim()}</span>
+              <span style={{ fontSize:13, color: sec.color||S.blue, fontWeight:700, fontFamily:'monospace', flexShrink:0 }}>{m[2].trim()}</span>
+            </div>
+          );
+          return <div key={ii} style={{ fontSize:13, color:'#aaa', lineHeight:1.5, padding:'3px 0' }}>{item}</div>;
+        })}
+      </div>
+    ));
   }
 
   return (

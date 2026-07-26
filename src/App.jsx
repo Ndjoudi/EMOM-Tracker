@@ -11,39 +11,59 @@ function App(){
   const[resumeDraft,setResumeDraft]=useState(()=>window.load(window.SK.draft));
   const[profile,setProfile]=useState(()=>window.load(window.SK.profile)||{groqKey:'',weight:'',armCm:'',chestCm:'',waistCm:'',name:''});
   const[recapWo,setRecapWo]=useState(null);
+  const[circuits,setCircuits]=useState(()=>window.load(window.SK.circuits)||[]);
+  const[circuitHistory,setCircuitHistory]=useState(()=>window.load(window.SK.circuitHistory)||[]);
+  const[editCircuit,setEditCircuit]=useState(null);
+  const[activeCircuit,setActiveCircuit]=useState(null);
 
   useEffect(()=>{window.save(window.SK.exercises,exLib);},[exLib]);
   useEffect(()=>{window.save(window.SK.routines,routines);},[routines]);
   useEffect(()=>{window.save(window.SK.history,history);},[history]);
   useEffect(()=>{window.save(window.SK.profile,profile);},[profile]);
+  useEffect(()=>{window.save(window.SK.circuits,circuits);},[circuits]);
+  useEffect(()=>{window.save(window.SK.circuitHistory,circuitHistory);},[circuitHistory]);
 
   const saveRoutine=r=>{setRoutines(p=>{const i=p.findIndex(x=>x.id===r.id);if(i>=0){const n=[...p];n[i]=r;return n;}return[...p,r];});setEditRoutine(null);setScreen('home');};
   const deleteRoutine=id=>{setRoutines(p=>p.filter(r=>r.id!==id));setScreen('home');};
 
-  const startWorkout=routine=>{
+  const saveCircuit=c=>{setCircuits(p=>{const i=p.findIndex(x=>x.id===c.id);if(i>=0){const n=[...p];n[i]=c;return n;}return[...p,c];});setEditCircuit(null);setScreen('home');};
+  const deleteCircuit=id=>{setCircuits(p=>p.filter(c=>c.id!==id));setEditCircuit(null);setScreen('home');};
+
+  const startWorkout=(routine,context={})=>{
     window.unlockAudio();
     const wo={id:window.uid(),routineId:routine.id,routineName:routine.name,startedAt:Date.now(),
+      sleep:context.sleep??null,nutrition:context.nutrition??null,
       exercises:routine.exerciseRefs.map(ref=>{const libEx=exLib.find(e=>e.id===ref.exId);if(!libEx)return null;return{exId:libEx.id,name:libEx.name,rm:libEx.rm,nbSets:ref.nbSets,emomTime:ref.emomTime,sets:Array.from({length:ref.nbSets},(_,i)=>{const p=window.getLastPerf(history,libEx.name,i);return{kg:p?p.kg:'',reps:p?p.reps:'',done:false};})};}).filter(Boolean),
       currentExIndex:0,currentSet:0};
     setActiveWo(wo);setScreen('workout');
   };
 
   const finishWorkout=wo=>{
-    const entry={id:wo.id,routineName:wo.routineName,date:wo.startedAt,duration:Date.now()-wo.startedAt,exercises:wo.exercises.map(ex=>({name:ex.name,exId:ex.exId,rm:ex.rm,sets:ex.sets}))};
+    const entry={id:wo.id,routineName:wo.routineName,date:wo.startedAt,duration:Date.now()-wo.startedAt,sleep:wo.sleep,nutrition:wo.nutrition,exercises:wo.exercises.map(ex=>({name:ex.name,exId:ex.exId,rm:ex.rm,sets:ex.sets}))};
     wo.exercises.forEach(ex=>{setExLib(p=>p.map(e=>e.id===ex.exId?{...e,rm:ex.rm}:e));});
     setHistory(p=>[entry,...p]);setActiveWo(null);
     window.save(window.SK.draft,null);setResumeDraft(null);
     setRecapWo({wo,entry});setScreen('recap');
   };
 
+  const finishCircuit=entry=>{
+    setCircuitHistory(p=>[entry,...p]);
+    setActiveCircuit(null);
+    setScreen('home');
+  };
+
   const HomeScreen=window.HomeScreen,WorkoutScreen=window.WorkoutScreen,RecapScreen=window.RecapScreen;
   const EditRoutineScreen=window.EditRoutineScreen,ExLibScreen=window.ExLibScreen;
   const HistoryScreen=window.HistoryScreen,StatsScreen=window.StatsScreen;
   const TransferScreen=window.TransferScreen,CoachScreen=window.CoachScreen,ProfileScreen=window.ProfileScreen;
+  const EditCircuitScreen=window.EditCircuitScreen,CircuitScreen=window.CircuitScreen,CircuitHistoryScreen=window.CircuitHistoryScreen;
 
   if(screen==='workout'&&activeWo) return<WorkoutScreen wo={activeWo} setWo={setActiveWo} onFinish={finishWorkout} onCancel={()=>{setActiveWo(null);setScreen('home');}} history={history} exLib={exLib} setExLib={setExLib}/>;
   if(screen==='recap'&&recapWo) return<RecapScreen data={recapWo} history={history} profile={profile} onHome={()=>{setRecapWo(null);setScreen('home');}} onSaveProfile={p=>setProfile(prev=>({...prev,...p}))}/>;
   if(screen==='editRoutine') return<EditRoutineScreen routine={editRoutine} exLib={exLib} setExLib={setExLib} onSave={saveRoutine} onDelete={()=>deleteRoutine(editRoutine.id)} onBack={()=>setScreen('home')}/>;
+  if(screen==='editCircuit'&&editCircuit) return<EditCircuitScreen circuit={editCircuit} onSave={saveCircuit} onDelete={()=>deleteCircuit(editCircuit.id)} onBack={()=>setScreen('home')}/>;
+  if(screen==='circuit'&&activeCircuit) return<CircuitScreen circuit={activeCircuit} circuitHistory={circuitHistory.filter(h=>h.circuitId===activeCircuit.id)} onFinish={finishCircuit} onCancel={()=>{setActiveCircuit(null);setScreen('home');}}/>;
+  if(screen==='circuitHistory') return<CircuitHistoryScreen circuitHistory={circuitHistory} circuits={circuits} onBack={()=>setScreen('home')} onDelete={(_,idx)=>setCircuitHistory(p=>p.filter((_,i)=>i!==idx))}/>;
   if(screen==='exLib') return<ExLibScreen exLib={exLib} setExLib={setExLib} history={history} onBack={()=>setScreen('home')}/>;
   if(screen==='history') return<HistoryScreen history={history} routines={routines} onBack={()=>setScreen('home')} onUpdate={(id,u)=>setHistory(p=>p.map(h=>h.id===id?u:h))} onDelete={id=>setHistory(p=>p.filter(h=>h.id!==id))}/>;
   if(screen==='stats') return<StatsScreen history={history} onBack={()=>setScreen('home')}/>;
@@ -59,6 +79,10 @@ function App(){
     onNavigate={setScreen}
     onResumeDraft={()=>{setActiveWo(resumeDraft);setScreen('workout');}}
     onClearDraft={()=>{window.save(window.SK.draft,null);setResumeDraft(null);}}
+    circuits={circuits}
+    onStartCircuit={c=>{setActiveCircuit(c);setScreen('circuit');}}
+    onEditCircuit={c=>{setEditCircuit({...c,exos:[...c.exos]});setScreen('editCircuit');}}
+    onNewCircuit={()=>{setEditCircuit({id:window.uid(),name:'',restSec:90,exos:[]});setScreen('editCircuit');}}
   />;
 }
 

@@ -7,8 +7,8 @@ window.RecapScreen = function RecapScreen({ data, history, profile, onHome, onSa
   const { wo, entry } = data;
   const [fatigue, setFatigue]           = useStateRecap(null);
   const [showAnalysis, setShowAnalysis] = useStateRecap(false);
-  const [sleep, setSleep]               = useStateRecap(null);
-  const [nutrition, setNutrition]       = useStateRecap(null);
+  const sleep    = entry.sleep    ?? null;
+  const nutrition= entry.nutrition?? null;
   const fmt2 = (ms) => { const s = Math.floor(ms/1000); const m = Math.floor(s/60); const sec = s%60; return m+'m'+sec.toString().padStart(2,'0')+'s'; };
 
   const fatigueLabels = ['Frais', 'Normal', 'Fatigué', 'Très fatigué', 'Épuisé'];
@@ -130,29 +130,15 @@ window.RecapScreen = function RecapScreen({ data, history, profile, onHome, onSa
         </div>
       ))}
 
-      <div style={{ ...S.card, marginTop: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Contexte de la séance</div>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: '#555', marginBottom: 8 }}>Sommeil cette nuit</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[['😴','<6h'],['😐','6-7h'],['😊','7-8h'],['💪','8h+']].map(([emoji, label], i) => (
-              <button key={i} onClick={() => setSleep(i)} style={{ flex: 1, background: sleep===i ? '#0D7A8A33' : '#111113', border: `1px solid ${sleep===i ? '#0D7A8A' : '#222'}`, borderRadius: 8, padding: '8px 4px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <span style={{ fontSize: 16 }}>{emoji}</span><span style={{ fontSize: 10, color: sleep===i ? '#0D7A8A' : '#555' }}>{label}</span>
-              </button>
-            ))}
+      {(sleep!==null||nutrition!==null)&&(
+        <div style={{ ...S.card, marginTop: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Contexte pré-séance</div>
+          <div style={{ display:'flex', gap:10 }}>
+            {sleep!==null&&(()=>{const opts=[['😴','< 6h'],['😐','6-7h'],['😊','7-8h'],['💪','8h+']];return(<div style={{flex:1,background:'#111113',borderRadius:8,padding:'10px',textAlign:'center'}}><div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Sommeil</div><div style={{fontSize:20}}>{opts[sleep][0]}</div><div style={{fontSize:12,fontWeight:600,color:'#aaa',marginTop:4}}>{opts[sleep][1]}</div></div>);})()}
+            {nutrition!==null&&(()=>{const opts=[['😕','Légère'],['😐','Correcte'],['💪','Optimale']];return(<div style={{flex:1,background:'#111113',borderRadius:8,padding:'10px',textAlign:'center'}}><div style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Nutrition</div><div style={{fontSize:20}}>{opts[nutrition][0]}</div><div style={{fontSize:12,fontWeight:600,color:'#aaa',marginTop:4}}>{opts[nutrition][1]}</div></div>);})()}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: 12, color: '#555', marginBottom: 8 }}>Nutrition du jour</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[['😕','Insuffisante'],['😐','Correcte'],['💪','Optimale']].map(([emoji, label], i) => (
-              <button key={i} onClick={() => setNutrition(i)} style={{ flex: 1, background: nutrition===i ? '#0D7A8A33' : '#111113', border: `1px solid ${nutrition===i ? '#0D7A8A' : '#222'}`, borderRadius: 8, padding: '8px 4px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <span style={{ fontSize: 16 }}>{emoji}</span><span style={{ fontSize: 10, color: nutrition===i ? '#0D7A8A' : '#555', textAlign: 'center', lineHeight: 1.2 }}>{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
 
       <div style={{ padding: '16px 14px 32px' }}>
         <button style={S.btn} onClick={onHome}>Retour à l'accueil</button>

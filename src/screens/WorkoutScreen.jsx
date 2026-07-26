@@ -1,75 +1,6 @@
 const {useState:uSW,useEffect:uEW,useRef:uRW,useCallback:uCW}=React;
 const S=window.S,IC=window.IC,colH=window.colH,tBtn=window.tBtn;
 
-function WsExChart({exName,hist,goal}){
-  const cRef=uRW(null);
-  const instRef=uRW(null);
-  const[period,setPeriod]=uSW('seances');
-
-  function getRd(){
-    return[...hist].reverse().flatMap(h=>h.exercises.filter(e=>e.name===exName).map(e=>({date:h.date,maxKg:Math.max(0,...e.sets.filter(s=>s.done).map(s=>parseFloat(s.kg)||0)),sets:e.sets.filter(s=>s.done)}))).filter(d=>d.sets.length>0);
-  }
-  function getGrouped(rd){
-    if(period==='seances')return rd.map(d=>({label:window.dateFr(d.date),maxKg:d.maxKg,date:new Date(d.date)}));
-    const map={};
-    rd.forEach(d=>{
-      const k=period==='semaines'?window.getWeekKey(d.date):window.getMonthKey(d.date);
-      if(!map[k])map[k]={k,entries:[]};
-      map[k].entries.push(d);
-    });
-    return Object.values(map).map(g=>({
-      label:period==='semaines'?new Date(g.k).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):window.getMonthLabel(g.k),
-      maxKg:Math.max(...g.entries.map(e=>e.maxKg)),
-      date:new Date(g.k)
-    }));
-  }
-
-  uEW(()=>{
-    if(!cRef.current)return;
-    const rd=getRd();
-    if(rd.length<2)return;
-    const grouped=getGrouped(rd);
-    if(grouped.length<2)return;
-    if(instRef.current){instRef.current.destroy();instRef.current=null;}
-    const tc=(()=>{
-      if(!goal||!goal.date||rd.length===0)return[];
-      const s=rd[rd.length-1];const sd=new Date(s.date);const ed=new Date(goal.date);
-      const msW=7*24*3600*1000;const tw=Math.max(1,Math.round((ed-sd)/msW));
-      const kpw=(goal.kg-s.maxKg)/tw;const pts=[];
-      for(let w=0;w<=tw;w++){const d=new Date(sd.getTime()+w*msW);pts.push({date:d,kg:Math.round((s.maxKg+kpw*w)*100)/100});}
-      return pts;
-    })();
-    let labels=grouped.map(g=>g.label);
-    let lastRealIdx=grouped.length-1;
-    const datasets=[{data:grouped.map(g=>g.maxKg),borderColor:'#0D7A8A',backgroundColor:'#0D7A8A22',fill:true,tension:0.35,pointRadius:4,pointBackgroundColor:grouped.map((_,i)=>i===lastRealIdx?'#22C55E':'#0D7A8A'),borderWidth:2,label:'Réel',spanGaps:false}];
-    if(tc.length>0){
-      const allMap=new Map();
-      grouped.forEach(g=>allMap.set(g.label,{real:g.maxKg,target:null,date:g.date}));
-      tc.forEach(t=>{const lbl=window.dateFr(t.date.getTime());if(!allMap.has(lbl))allMap.set(lbl,{real:null,target:t.kg,date:t.date});else allMap.get(lbl).target=t.kg;});
-      const sorted=[...allMap.entries()].sort((a,b)=>a[1].date-b[1].date);
-      labels=sorted.map(e=>e[0]);
-      datasets[0].data=sorted.map(e=>e[1].real);
-      let li=-1;sorted.forEach((e,i)=>{if(e[1].real!==null)li=i;});
-      datasets[0].pointBackgroundColor=sorted.map((e,i)=>e[1].real!==null&&i===li?'#22C55E':'#0D7A8A');
-      datasets.push({data:sorted.map(e=>e[1].target),borderColor:'#22C55E',borderWidth:2,borderDash:[6,4],pointRadius:sorted.map(e=>e[1].target!==null?3:0),pointBackgroundColor:'#22C55E',fill:false,tension:0.2,label:'Cible',spanGaps:false});
-    }
-    instRef.current=new Chart(cRef.current,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{if(ctx.parsed.y===null)return null;return ctx.dataset.label==='Cible'?'Cible: '+ctx.parsed.y+' kg':ctx.parsed.y+' kg';}}}},scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#666',font:{size:10},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#666',font:{size:11},callback:v=>v+' kg'}}}}});
-    return()=>{if(instRef.current){instRef.current.destroy();instRef.current=null;}};
-  },[exName,period]);
-
-  const btnStyle=p=>({background:period===p?'#1E1E22':'transparent',border:period===p?'1px solid #333':'1px solid transparent',borderRadius:6,padding:'3px 10px',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',color:period===p?'#fff':'#555'});
-  return(
-    <div>
-      <div style={{display:'flex',gap:4,marginBottom:6}}>
-        <button style={btnStyle('seances')} onClick={()=>setPeriod('seances')}>Séances</button>
-        <button style={btnStyle('semaines')} onClick={()=>setPeriod('semaines')}>Semaines</button>
-        <button style={btnStyle('mois')} onClick={()=>setPeriod('mois')}>Mois</button>
-      </div>
-      <div style={{position:'relative',height:140}}><canvas ref={cRef}/></div>
-    </div>
-  );
-}
-
 window.WorkoutScreen=function WorkoutScreen({wo,setWo,onFinish,onCancel,history,exLib,setExLib}){
   const[timerLeft,setTimerLeft]=uSW(0);
   const[timerOn,setTimerOn]=uSW(false);
@@ -111,12 +42,26 @@ window.WorkoutScreen=function WorkoutScreen({wo,setWo,onFinish,onCancel,history,
         if(next===halfTime&&!soundRef.current[halfTime]){window.sndMiddle();soundRef.current[halfTime]=true;}
         if(next===10&&!soundRef.current[10]){window.snd10();soundRef.current[10]=true;}
         if((next===3||next===2||next===1)&&!soundRef.current[next]){window.sndCountdown();soundRef.current[next]=true;}
-        if(next<=0){clearInterval(iRef.current);window.sndGo();avRef.current();return 0;}
+        if(next<=0){clearInterval(iRef.current);window.sndGo();window.timerAlert&&window.timerAlert('Série terminée',`${ex?.name||''} — série suivante`);avRef.current();return 0;}
         return next;});},1000);
       return()=>clearInterval(iRef.current);}
   },[timerOn,timerLeft,halfTime]);
 
-  const start=()=>{window.unlockAudio();soundRef.current={};setTimerLeft(emomS);setTimerOn(true);if(restOn){clearInterval(restRef.current);setRestOn(false);setRestLeft(0);}};
+  // Texte de l'écran verrouillé
+  uEW(()=>{
+    if(!timerOn&&!restOn)return;
+    const title=restOn?'Repos':(ex?.name||wo.routineName);
+    window.updateLockScreen&&window.updateLockScreen(title,`${wo.routineName} — Série ${wo.currentSet+1}`);
+  },[wo.currentExIndex,wo.currentSet,restOn,timerOn]);
+
+  // Libère le wake lock en quittant la séance
+  uEW(()=>()=>{
+    window._wantWakeLock=false;
+    window.releaseWakeLock&&window.releaseWakeLock();
+    window.stopLockScreenSession&&window.stopLockScreenSession();
+  },[]);
+
+  const start=()=>{window.unlockAudio();window._wantWakeLock=true;window.requestWakeLock&&window.requestWakeLock();window.startLockScreenSession&&window.startLockScreenSession(ex?.name||wo.routineName,`${wo.routineName} — Série ${wo.currentSet+1}`);window.setLockScreenHandlers&&window.setLockScreenHandlers({onNext:()=>skip()});window.requestNotifPermission&&window.requestNotifPermission();soundRef.current={};setTimerLeft(emomS);setTimerOn(true);if(restOn){clearInterval(restRef.current);setRestOn(false);setRestLeft(0);}};
   const stopV=()=>{clearInterval(iRef.current);setTimerOn(false);setTimerLeft(0);soundRef.current={};avRef.current();};
   const skip=()=>{clearInterval(iRef.current);setTimerOn(false);soundRef.current={};avRef.current();};
   const adj=d=>setTimerLeft(p=>Math.max(0,p+d));
@@ -132,6 +77,15 @@ window.WorkoutScreen=function WorkoutScreen({wo,setWo,onFinish,onCancel,history,
 
   const progress=timerOn?((emomS-timerLeft)/emomS)*100:0;
   const last2=ex?window.getExHist(history,ex.name).slice(0,2):[];
+
+  // Facteur d'ajustement selon sommeil + nutrition
+  const contextFactor=(()=>{
+    const sleepAdj=[-0.10,-0.05,0,+0.02]; // <6h, 6-7h, 7-8h, 8h+
+    const nutriAdj=[-0.08,0,+0.02];        // légère, correcte, optimale
+    const s=wo.sleep!==null?sleepAdj[wo.sleep]??0:0;
+    const n=wo.nutrition!==null?nutriAdj[wo.nutrition]??0:0;
+    return 1+s+n;
+  })();
 
   const exGoal=ex?(wsGoals[ex.name]||null):null;
   const exNextTarget=(()=>{
@@ -163,56 +117,78 @@ window.WorkoutScreen=function WorkoutScreen({wo,setWo,onFinish,onCancel,history,
         <div style={S.card}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
             <div style={{width:38,height:38,borderRadius:'50%',background:'#1E1E22',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><IC.dumbbell/></div>
-            <button onClick={()=>setShowExStats(ex.name)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',textAlign:'left',padding:0}}>
-              <div style={{fontSize:17,fontWeight:700,color:'#E8E8EA'}}>{ex.name}</div>
+            <button onClick={()=>setShowExStats(ex.name)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',textAlign:'left',padding:0,flex:1,minWidth:0}}>
+              <div style={{fontSize:17,fontWeight:700,color:'#E8E8EA',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{ex.name}</div>
               <div style={{fontSize:11,color:S.blue,marginTop:1,display:'flex',alignItems:'center',gap:4}}><IC.chartBar/> Voir stats & historique</div>
             </button>
+            <button onClick={()=>{setTempV(String(ex.emomTime));setShowEditEmom(true);}} style={{background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:6,padding:0,flexShrink:0}}>
+              <span style={{display:'flex',alignItems:'center',gap:3,color:S.blue,fontSize:12,fontWeight:600}}><IC.clock/> {Math.floor(ex.emomTime/60)}m{ex.emomTime%60>0?(ex.emomTime%60)+'s':''} <span style={{color:'#555'}}><IC.edit/></span></span>
+              <span style={{fontSize:12,color:'#555'}}>×</span>
+              <span style={{background:'#1E1E22',borderRadius:6,padding:'2px 10px',fontSize:13,fontWeight:700,border:'1px solid #333',color:'#fff'}}>{ex.sets.length}</span>
+            </button>
           </div>
-          <button onClick={()=>{setTempV(String(ex.rm||''));setShowEditRm(true);}} style={{background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap',padding:0,width:'100%'}}>
+          <button onClick={()=>{setTempV(String(ex.rm||''));setShowEditRm(true);}} style={{background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap',padding:0,width:'100%'}}>
             <span style={{background:'#1A1A2E',border:'1px solid #2A2A3E',borderRadius:6,padding:'5px 10px',fontSize:13,fontWeight:600,color:'#ccc',display:'flex',alignItems:'center',gap:5}}>1RM {ex.rm||'—'}kg <span style={{color:'#555'}}><IC.edit/></span></span>
             {ex.rm&&window.calcP(Number(ex.rm)).map((v,i)=><span key={i} style={{fontSize:13,fontWeight:600,color:'#8B8BFF'}}>{v}<span style={{fontSize:11,color:'#6060cc',fontWeight:500}}>×{window.repsAt[i]}</span></span>)}
           </button>
-          <button onClick={()=>{setTempV(String(ex.emomTime));setShowEditEmom(true);}} style={{background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:8,marginBottom:10,padding:0}}>
-            <span style={{display:'flex',alignItems:'center',gap:4,color:S.blue,fontSize:13,fontWeight:600}}><IC.clock/> Emom: {Math.floor(ex.emomTime/60)}m{ex.emomTime%60>0?(ex.emomTime%60)+'s':''} <span style={{color:'#555'}}><IC.edit/></span></span>
-            <span style={{fontSize:13,color:'#666'}}>pendant</span>
-            <span style={{background:'#1E1E22',borderRadius:6,padding:'2px 10px',fontSize:14,fontWeight:700,border:'1px solid #333',color:'#fff'}}>{ex.sets.length}</span>
-          </button>
 
-          {last2.length>0&&(
-            <div style={{background:'#111113',borderRadius:8,padding:'8px 10px',marginBottom:12,border:'1px solid #1A1A1E'}}>
-              <div style={{fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Dernières séances</div>
-              {last2.map((entry,li)=>{const prevE=last2[li+1];const done=entry.sets.filter(s=>s.done);const prevDone=prevE?prevE.sets.filter(s=>s.done):[];const sp=prevE?window.getSessionPerf(done,prevDone):'neutral';return(<div key={li} style={{display:'flex',gap:6,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
-                <span style={{fontSize:11,color:'#666',minWidth:50}}>{window.dateFr(entry.date)}</span>
-                {done.map((s,j)=><span key={j} style={{fontSize:12,color:'#bbb',fontWeight:600}}>{s.kg?s.kg+'×':''}{s.reps}</span>)}
-                {sp!=='neutral'&&<span style={{fontSize:12,color:window.perfC[sp],fontWeight:800}}>{window.perfI[sp]}</span>}
-              </div>);})}
-            </div>
-          )}
-
-          <div style={{display:'grid',gridTemplateColumns:'28px 1fr 58px 120px 62px 34px',gap:4,padding:'6px 0',borderBottom:'1px solid #222',marginBottom:4}}>
-            <span style={colH}>Sér.</span><span style={colH}>Préc.</span><span style={{...colH,textAlign:'center',color:S.blue}}>Cible</span><span style={{...colH,textAlign:'center'}}>{ex.bodyweight?'LEST +':'KG'}</span><span style={{...colH,textAlign:'center'}}>Réps</span><span style={{...colH,textAlign:'center'}}>✓</span>
-          </div>
-
-          {ex.sets.map((set,si)=>{
-            const prev=window.getLastPerf(history,ex.name,si);
-            const isCur=si===wo.currentSet&&!set.done;
-            const prevSet=last2[0]?last2[0].sets.filter(s=>s.done)[si]:undefined;
-            const p=set.done&&prevSet?window.perf(set,prevSet):'neutral';
-            return(<div key={si} style={{display:'grid',gridTemplateColumns:'28px 1fr 58px 120px 62px 34px',gap:4,alignItems:'center',padding:'6px 0',borderRadius:8,background:set.done?S.greenBg:isCur?'#1a1a2e':'transparent',transition:'background 0.3s'}}>
-              <span style={{fontSize:14,fontWeight:700,color:set.done?S.green:'#aaa',paddingLeft:2,display:'flex',alignItems:'center',gap:2}}>{si+1}{set.done&&p!=='neutral'&&<span style={{fontSize:9,color:window.perfC[p]}}>{window.perfI[p]}</span>}</span>
-              <span style={{fontSize:12,color:'#555'}}>{prev?(prev.kg?prev.kg+'×':'')+prev.reps:'—'}</span>
-              <span style={{fontSize:11,fontWeight:600,color:S.blue,textAlign:'center'}}>{exNextTarget?exNextTarget.kg.toFixed(1)+'×'+exGoal.reps:'—'}</span>
-              <div style={{display:'flex',alignItems:'center',gap:2}}>
-                <button style={stepStyle(set.done)} onClick={()=>adjKg(si,-1.25)}>−</button>
-                <input style={{...S.inpS,flex:1,minWidth:0,background:set.done?'transparent':'#1E1E22',color:set.done?S.green:'#fff',border:set.done?'1px solid #22C55E44':'1px solid #2A2A2E',fontSize:14,padding:'6px 2px'}} type="number" placeholder="kg" value={set.kg} onChange={e=>upSet(si,'kg',e.target.value)}/>
-                <button style={stepStyle(set.done)} onClick={()=>adjKg(si,1.25)}>+</button>
+          {last2.length>0&&(()=>{
+            const liveEx2=wo.exercises.find(e=>e.name===ex.name);
+            const liveDone2=liveEx2?liveEx2.sets.filter(s=>s.done):[];
+            const liveMaxKg2=liveDone2.length>0?Math.max(0,...liveDone2.map(s=>parseFloat(s.kg)||0)):0;
+            const liveVol2=liveDone2.reduce((a,s)=>a+(parseFloat(s.kg)||0)*(parseFloat(s.reps)||0),0);
+            const lp2=liveMaxKg2>0?{maxKg:liveMaxKg2,vol:liveVol2,date:wo.startedAt}:null;
+            const allHist=window.getExHist(history,ex.name);
+            return(
+              <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
+                <div style={{background:'#111113',borderRadius:8,padding:'5px 8px',border:'1px solid #1A1A1E'}}>
+                  <div style={{fontSize:10,color:'#444',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>Dernières séances</div>
+                  {last2.map((entry,li)=>{const prevE=last2[li+1];const done=entry.sets.filter(s=>s.done);const prevDone=prevE?prevE.sets.filter(s=>s.done):[];const sp=prevE?window.getSessionPerf(done,prevDone):'neutral';return(<div key={li} style={{display:'flex',alignItems:'center',gap:6,marginBottom:li<last2.length-1?3:0}}>
+                    <span style={{fontSize:10,color:'#555',minWidth:36,flexShrink:0}}>{window.dateFr(entry.date)}</span>
+                    <div style={{display:'flex',gap:3,flexWrap:'wrap',alignItems:'center'}}>
+                      {done.map((s,j)=><span key={j} style={{fontSize:11,color:'#bbb',fontWeight:600}}>{s.kg?s.kg+'×':''}{s.reps}</span>)}
+                      {sp!=='neutral'&&<span style={{fontSize:10,color:window.perfC[sp],fontWeight:800}}>{window.perfI[sp]}</span>}
+                    </div>
+                  </div>);})}
+                </div>
+                <div style={{background:'#111113',borderRadius:8,padding:'6px 8px',border:'1px solid #1A1A1E'}}>
+                  <window.ExComboChart exName={ex.name} hist={history} goal={wsGoals[ex.name]||null} height={90} livePoint={lp2} compact={true} maxPoints={5} targetKg={exNextTarget?Math.round(exNextTarget.kg*contextFactor):null}/>
+                </div>
               </div>
-              <input style={{...S.inpS,background:set.done?'transparent':'#1E1E22',color:set.done?S.green:'#fff',border:set.done?'1px solid #22C55E44':'1px solid #2A2A2E',fontSize:14,padding:'6px 4px'}} type="number" placeholder="réps" value={set.reps} onChange={e=>upSet(si,'reps',e.target.value)}/>
-              <button style={{...S.btnG,justifyContent:'center'}} onClick={()=>togSet(si)}>
-                <div style={{width:26,height:26,borderRadius:'50%',background:set.done?S.green:'#222',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s',color:set.done?'#fff':'#444'}}><IC.check/></div>
-              </button>
-            </div>);
-          })}
+            );
+          })()}
+
+          {(()=>{
+            const isBW=ex.bodyweight;
+            const cols=isBW?'28px 1fr 58px 62px 34px':'28px 1fr 58px 120px 62px 34px';
+            return(<>
+              <div style={{display:'grid',gridTemplateColumns:cols,gap:4,padding:'6px 0',borderBottom:'1px solid #222',marginBottom:4}}>
+                <span style={colH}>Sér.</span><span style={colH}>Préc.</span><span style={{...colH,textAlign:'center',color:S.blue}}>Cible</span>
+                {!isBW&&<span style={{...colH,textAlign:'center'}}>KG</span>}
+                <span style={{...colH,textAlign:'center'}}>Réps</span><span style={{...colH,textAlign:'center'}}>✓</span>
+              </div>
+              {ex.sets.map((set,si)=>{
+                const prev=window.getLastPerf(history,ex.name,si);
+                const isCur=si===wo.currentSet&&!set.done;
+                const prevSet=last2[0]?last2[0].sets.filter(s=>s.done)[si]:undefined;
+                const p=set.done&&prevSet?window.perf(set,prevSet):'neutral';
+                return(<div key={si} style={{display:'grid',gridTemplateColumns:cols,gap:4,alignItems:'center',padding:'6px 0',borderRadius:8,background:set.done?S.greenBg:isCur?'#1a1a2e':'transparent',transition:'background 0.3s'}}>
+                  <span style={{fontSize:14,fontWeight:700,color:set.done?S.green:'#aaa',paddingLeft:2,display:'flex',alignItems:'center',gap:2}}>{si+1}{set.done&&p!=='neutral'&&<span style={{fontSize:9,color:window.perfC[p]}}>{window.perfI[p]}</span>}</span>
+                  <span style={{fontSize:12,color:'#555'}}>{prev?(prev.kg?prev.kg+'×':'')+prev.reps:'—'}</span>
+                  <span style={{fontSize:11,fontWeight:600,color:S.blue,textAlign:'center'}}>{exNextTarget?Math.round(exNextTarget.kg*contextFactor)+'×'+exGoal.reps:'—'}</span>
+                  {!isBW&&<div style={{display:'flex',alignItems:'center',gap:2}}>
+                    <button style={stepStyle(set.done)} onClick={()=>adjKg(si,-1.25)}>−</button>
+                    <input style={{...S.inpS,flex:1,minWidth:0,background:set.done?'transparent':'#1E1E22',color:set.done?S.green:'#fff',border:set.done?'1px solid #22C55E44':'1px solid #2A2A2E',fontSize:14,padding:'6px 2px'}} type="number" placeholder="kg" value={set.kg} onChange={e=>upSet(si,'kg',e.target.value)}/>
+                    <button style={stepStyle(set.done)} onClick={()=>adjKg(si,1.25)}>+</button>
+                  </div>}
+                  <input style={{...S.inpS,background:set.done?'transparent':'#1E1E22',color:set.done?S.green:'#fff',border:set.done?'1px solid #22C55E44':'1px solid #2A2A2E',fontSize:14,padding:'6px 4px'}} type="number" placeholder="réps" value={set.reps} onChange={e=>upSet(si,'reps',e.target.value)}/>
+                  <button style={{...S.btnG,justifyContent:'center'}} onClick={()=>togSet(si)}>
+                    <div style={{width:26,height:26,borderRadius:'50%',background:set.done?S.green:'#222',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s',color:set.done?'#fff':'#444'}}><IC.check/></div>
+                  </button>
+                </div>);
+              })}
+            </>);
+          })()}
 
           <div style={{display:'flex',gap:8,marginTop:10}}>
             <button onClick={addSet} style={{...S.btnO,flex:1,padding:'8px',fontSize:13}}><IC.plus/> Série</button>
@@ -284,7 +260,7 @@ window.WorkoutScreen=function WorkoutScreen({wo,setWo,onFinish,onCancel,history,
             </div>
             {rd.length===0&&<div style={{color:'#555',textAlign:'center',padding:30,fontSize:14}}>Aucun historique</div>}
             {rd.length>0&&<>
-              {rd.length>=2&&<div style={{marginBottom:12}}><WsExChart exName={showExStats} hist={history} goal={goal}/></div>}
+              {rd.length>=2&&(()=>{const liveEx=wo.exercises.find(e=>e.name===showExStats);const liveDone=liveEx?liveEx.sets.filter(s=>s.done):[];const liveMaxKg=liveDone.length>0?Math.max(0,...liveDone.map(s=>parseFloat(s.kg)||0)):0;const liveVol=liveDone.reduce((a,s)=>a+(parseFloat(s.kg)||0)*(parseFloat(s.reps)||0),0);const lp=liveMaxKg>0?{maxKg:liveMaxKg,vol:liveVol,date:wo.startedAt}:null;return<div style={{marginBottom:12}}><window.ExComboChart exName={showExStats} hist={history} goal={goal} height={160} livePoint={lp}/></div>;})()}
               <div style={{borderTop:'1px solid #222',paddingTop:12,marginBottom:12}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                   <span style={{fontSize:12,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.06em'}}>Objectif</span>

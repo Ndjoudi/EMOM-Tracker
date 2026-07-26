@@ -5,7 +5,10 @@ const IC = window.IC;
 
 const ROUTINE_COLORS = ['#0D7A8A','#22C55E','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316'];
 
-window.HomeScreen = function HomeScreen({ routines, history, exLib, resumeDraft, onStartWorkout, onEditRoutine, onNewRoutine, onNavigate, onResumeDraft, onClearDraft }) {
+window.HomeScreen = function HomeScreen({ routines, history, exLib, resumeDraft, onStartWorkout, onEditRoutine, onNewRoutine, onNavigate, onResumeDraft, onClearDraft, circuits, onStartCircuit, onEditCircuit, onNewCircuit }) {
+  const [preWo, setPreWo] = useState(null); // routine en attente
+  const [preSleep, setPreSleep] = useState(null);
+  const [preNutrition, setPreNutrition] = useState(null);
   const routineNameColorMap = {};
   routines.forEach((r, i) => { routineNameColorMap[r.name] = ROUTINE_COLORS[i % ROUTINE_COLORS.length]; });
 
@@ -119,13 +122,99 @@ window.HomeScreen = function HomeScreen({ routines, history, exLib, resumeDraft,
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
             {r.exerciseRefs.map((ref, i) => { const ex = exLib.find((e) => e.id === ref.exId); return <span key={i} style={{ background: "#1E1E22", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "#999" }}>{ex ? ex.name : "?"}</span>; })}
           </div>
-          <button style={S.btn} onClick={() => onStartWorkout(r)}><IC.play/> Lancer</button>
+          <button style={S.btn} onClick={() => { setPreWo(r); setPreSleep(null); setPreNutrition(null); }}><IC.play/> Lancer</button>
         </div>
       ))}
 
       <div style={{ padding: "12px 14px" }}>
         <button style={S.btnO} onClick={onNewRoutine}><IC.plus/> Nouvelle routine</button>
       </div>
+
+      {/* ── Circuits ── */}
+      <div style={{ padding: "12px 14px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: "#aaa" }}>Mes Circuits</span>
+        <div style={{display:'flex',gap:6}}>
+          <button style={{...S.btnG,color:'#aaa',fontSize:12,padding:'6px 10px'}} onClick={()=>onNavigate('circuitHistory')}><IC.hist/></button>
+          <button style={{ ...S.btnG, color: '#F59E0B' }} onClick={onNewCircuit}><IC.plus/></button>
+        </div>
+      </div>
+
+      {(!circuits || circuits.length === 0) && (
+        <div style={{ ...S.card, textAlign: "center", padding: 32, color: "#555" }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>⚡</div>
+          <div style={{ fontSize: 14 }}>Aucun circuit</div>
+          <div style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Un circuit enchaîne plusieurs exos sur 1 min chacun</div>
+        </div>
+      )}
+
+      {(circuits||[]).map(c => (
+        <div key={c.id} style={{ ...S.card, borderColor: '#F59E0B22' }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:13, background:'#F59E0B22', color:'#F59E0B', borderRadius:6, padding:'2px 8px', fontWeight:700 }}>⚡ Circuit</span>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{c.name}</div>
+              </div>
+              <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>{c.exos.length} exo{c.exos.length>1?'s':''} · {c.exos.length} min/série · repos {Math.floor((c.restSec||90)/60)}m{(c.restSec||90)%60>0?((c.restSec||90)%60)+'s':''}</div>
+            </div>
+            <button style={S.btnG} onClick={() => onEditCircuit(c)}><IC.edit/></button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {c.exos.map((ex,i) => <span key={i} style={{ background: "#1E1E22", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "#999" }}>{ex.name}</span>)}
+          </div>
+          <button style={{ ...S.btn, background: '#F59E0B', borderColor: '#F59E0B' }} onClick={() => onStartCircuit(c)}>
+            <IC.play/> Lancer
+          </button>
+        </div>
+      ))}
+
+      <div style={{ padding: "12px 14px 32px" }}>
+        <button style={{ ...S.btnO, borderColor:'#F59E0B44', color:'#F59E0B' }} onClick={onNewCircuit}><IC.plus/> Nouveau circuit</button>
+      </div>
+
+      {preWo && (
+        <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget){ setPreWo(null); } }}>
+          <div style={S.modal}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
+              <div>
+                <div style={{ fontSize:17, fontWeight:700 }}>Avant de commencer</div>
+                <div style={{ fontSize:12, color:'#555', marginTop:2 }}>{preWo.name}</div>
+              </div>
+              <button style={S.btnG} onClick={()=>setPreWo(null)}><IC.close/></button>
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:12, color:'#555', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Sommeil cette nuit</div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[['😴','< 6h'],['😐','6-7h'],['😊','7-8h'],['💪','8h+']].map(([emoji,label],i)=>(
+                  <button key={i} onClick={()=>setPreSleep(i)} style={{ flex:1, background:preSleep===i?'#0D7A8A33':'#111113', border:`1px solid ${preSleep===i?'#0D7A8A':'#222'}`, borderRadius:8, padding:'10px 4px', cursor:'pointer', fontFamily:'inherit', display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                    <span style={{ fontSize:20 }}>{emoji}</span>
+                    <span style={{ fontSize:10, color:preSleep===i?'#0D7A8A':'#555', fontWeight:600 }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:22 }}>
+              <div style={{ fontSize:12, color:'#555', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Nutrition aujourd'hui</div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[['😕','Légère'],['😐','Correcte'],['💪','Optimale']].map(([emoji,label],i)=>(
+                  <button key={i} onClick={()=>setPreNutrition(i)} style={{ flex:1, background:preNutrition===i?'#0D7A8A33':'#111113', border:`1px solid ${preNutrition===i?'#0D7A8A':'#222'}`, borderRadius:8, padding:'10px 4px', cursor:'pointer', fontFamily:'inherit', display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                    <span style={{ fontSize:20 }}>{emoji}</span>
+                    <span style={{ fontSize:10, color:preNutrition===i?'#0D7A8A':'#555', fontWeight:600 }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {preSleep!==null&&preNutrition!==null ? (
+              <button style={S.btn} onClick={()=>{ onStartWorkout(preWo,{sleep:preSleep,nutrition:preNutrition}); setPreWo(null); }}><IC.play/> C'est parti !</button>
+            ) : (
+              <button style={{ ...S.btn, opacity:0.4 }} disabled><IC.play/> Renseigne les 2 champs</button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

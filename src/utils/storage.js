@@ -5,7 +5,9 @@ window.SK = {
   history: "emom-history2",
   draft: "emom-draft",
   goals: "emom-goals",
-  profile: "emom-profile"
+  profile: "emom-profile",
+  circuits: "emom-circuits",
+  circuitHistory: "emom-circuit-history",
 };
 
 window.load = function(k) {
