@@ -1,0 +1,344 @@
+(function(){
+const {
+  useState,
+  useEffect
+} = React;
+const S = window.S,
+  IC = window.IC;
+function App() {
+  const [screen, setScreen] = useState('home');
+  const [exLib, setExLib] = useState(() => window.load(window.SK.exercises) || []);
+  const [routines, setRoutines] = useState(() => window.load(window.SK.routines) || []);
+  const [history, setHistory] = useState(() => window.load(window.SK.history) || []);
+  const [editRoutine, setEditRoutine] = useState(null);
+  const [activeWo, setActiveWo] = useState(null);
+  const [resumeDraft, setResumeDraft] = useState(() => window.load(window.SK.draft));
+  const [profile, setProfile] = useState(() => window.load(window.SK.profile) || {
+    groqKey: '',
+    weight: '',
+    armCm: '',
+    chestCm: '',
+    waistCm: '',
+    name: ''
+  });
+  const [recapWo, setRecapWo] = useState(null);
+  const [circuits, setCircuits] = useState(() => window.load(window.SK.circuits) || []);
+  const [circuitHistory, setCircuitHistory] = useState(() => window.load(window.SK.circuitHistory) || []);
+  const [editCircuit, setEditCircuit] = useState(null);
+  const [activeCircuit, setActiveCircuit] = useState(null);
+  useEffect(() => {
+    window.save(window.SK.exercises, exLib);
+  }, [exLib]);
+  useEffect(() => {
+    window.save(window.SK.routines, routines);
+  }, [routines]);
+  useEffect(() => {
+    window.save(window.SK.history, history);
+  }, [history]);
+  useEffect(() => {
+    window.save(window.SK.profile, profile);
+  }, [profile]);
+  useEffect(() => {
+    window.save(window.SK.circuits, circuits);
+  }, [circuits]);
+  useEffect(() => {
+    window.save(window.SK.circuitHistory, circuitHistory);
+  }, [circuitHistory]);
+  const saveRoutine = r => {
+    setRoutines(p => {
+      const i = p.findIndex(x => x.id === r.id);
+      if (i >= 0) {
+        const n = [...p];
+        n[i] = r;
+        return n;
+      }
+      return [...p, r];
+    });
+    setEditRoutine(null);
+    setScreen('home');
+  };
+  const deleteRoutine = id => {
+    setRoutines(p => p.filter(r => r.id !== id));
+    setScreen('home');
+  };
+  const saveCircuit = c => {
+    setCircuits(p => {
+      const i = p.findIndex(x => x.id === c.id);
+      if (i >= 0) {
+        const n = [...p];
+        n[i] = c;
+        return n;
+      }
+      return [...p, c];
+    });
+    setEditCircuit(null);
+    setScreen('home');
+  };
+  const deleteCircuit = id => {
+    setCircuits(p => p.filter(c => c.id !== id));
+    setEditCircuit(null);
+    setScreen('home');
+  };
+  const startWorkout = (routine, context = {}) => {
+    const wo = {
+      id: window.uid(),
+      routineId: routine.id,
+      routineName: routine.name,
+      startedAt: Date.now(),
+      sleep: context.sleep ?? null,
+      nutrition: context.nutrition ?? null,
+      exercises: routine.exerciseRefs.map(ref => {
+        const libEx = exLib.find(e => e.id === ref.exId);
+        if (!libEx) return null;
+        const base = {
+          exId: libEx.id,
+          name: libEx.name,
+          rm: libEx.rm,
+          nbSets: ref.nbSets,
+          emomTime: ref.emomTime,
+          restTime: ref.restTime,
+          sets: Array.from({
+            length: ref.nbSets
+          }, (_, i) => {
+            const p = window.getLastPerf(history, libEx.name, i);
+            return {
+              kg: p ? p.kg : '',
+              reps: p ? p.reps : '',
+              done: false
+            };
+          })
+        };
+        const py = window.pyramidInit(ref, history, libEx.name);
+        return py ? {
+          ...base,
+          ...py
+        } : base;
+      }).filter(Boolean),
+      currentExIndex: 0,
+      currentSet: 0
+    };
+    setActiveWo(wo);
+    setScreen('workout');
+  };
+  const finishWorkout = wo => {
+    const entry = {
+      id: wo.id,
+      routineName: wo.routineName,
+      date: wo.startedAt,
+      duration: Date.now() - wo.startedAt,
+      sleep: wo.sleep,
+      nutrition: wo.nutrition,
+      exercises: wo.exercises.map(ex => {
+        const e = {
+          name: ex.name,
+          exId: ex.exId,
+          rm: ex.rm,
+          sets: ex.sets
+        };
+        if (ex.pyramid) {
+          e.pyramid = true;
+          e.pyGrid = ex.pyGrid;
+          e.pyRows = ex.pyRows;
+          e.pyCols = ex.pyCols;
+          e.pyX = ex.pyX;
+          e.pyY = ex.pyY;
+        }
+        return e;
+      })
+    };
+    wo.exercises.forEach(ex => {
+      setExLib(p => p.map(e => e.id === ex.exId ? {
+        ...e,
+        rm: ex.rm
+      } : e));
+    });
+    setHistory(p => [entry, ...p]);
+    setActiveWo(null);
+    window.save(window.SK.draft, null);
+    setResumeDraft(null);
+    setRecapWo({
+      wo,
+      entry
+    });
+    setScreen('recap');
+  };
+  const finishCircuit = entry => {
+    setCircuitHistory(p => [entry, ...p]);
+    setActiveCircuit(null);
+    setScreen('home');
+  };
+  const HomeScreen = window.HomeScreen,
+    WorkoutScreen = window.WorkoutScreen,
+    RecapScreen = window.RecapScreen;
+  const EditRoutineScreen = window.EditRoutineScreen,
+    ExLibScreen = window.ExLibScreen;
+  const HistoryScreen = window.HistoryScreen,
+    StatsScreen = window.StatsScreen;
+  const TransferScreen = window.TransferScreen,
+    CoachScreen = window.CoachScreen,
+    ProfileScreen = window.ProfileScreen;
+  const EditCircuitScreen = window.EditCircuitScreen,
+    CircuitScreen = window.CircuitScreen,
+    CircuitHistoryScreen = window.CircuitHistoryScreen;
+  if (screen === 'workout' && activeWo) return /*#__PURE__*/React.createElement(WorkoutScreen, {
+    wo: activeWo,
+    setWo: setActiveWo,
+    onFinish: finishWorkout,
+    onCancel: () => {
+      setActiveWo(null);
+      setScreen('home');
+    },
+    history: history,
+    exLib: exLib,
+    setExLib: setExLib
+  });
+  if (screen === 'recap' && recapWo) return /*#__PURE__*/React.createElement(RecapScreen, {
+    data: recapWo,
+    history: history,
+    profile: profile,
+    onHome: () => {
+      setRecapWo(null);
+      setScreen('home');
+    },
+    onSaveProfile: p => setProfile(prev => ({
+      ...prev,
+      ...p
+    }))
+  });
+  if (screen === 'editRoutine') return /*#__PURE__*/React.createElement(EditRoutineScreen, {
+    routine: editRoutine,
+    exLib: exLib,
+    setExLib: setExLib,
+    onSave: saveRoutine,
+    onDelete: () => deleteRoutine(editRoutine.id),
+    onBack: () => setScreen('home')
+  });
+  if (screen === 'editCircuit' && editCircuit) return /*#__PURE__*/React.createElement(EditCircuitScreen, {
+    circuit: editCircuit,
+    onSave: saveCircuit,
+    onDelete: () => deleteCircuit(editCircuit.id),
+    onBack: () => setScreen('home')
+  });
+  if (screen === 'circuit' && activeCircuit) return /*#__PURE__*/React.createElement(CircuitScreen, {
+    circuit: activeCircuit,
+    circuitHistory: circuitHistory.filter(h => h.circuitId === activeCircuit.id),
+    onFinish: finishCircuit,
+    onCancel: () => {
+      setActiveCircuit(null);
+      setScreen('home');
+    }
+  });
+  if (screen === 'circuitHistory') return /*#__PURE__*/React.createElement(CircuitHistoryScreen, {
+    circuitHistory: circuitHistory,
+    circuits: circuits,
+    onBack: () => setScreen('home'),
+    onDelete: (_, idx) => setCircuitHistory(p => p.filter((_, i) => i !== idx))
+  });
+  if (screen === 'exLib') return /*#__PURE__*/React.createElement(ExLibScreen, {
+    exLib: exLib,
+    setExLib: setExLib,
+    history: history,
+    onBack: () => setScreen('home')
+  });
+  if (screen === 'history') return /*#__PURE__*/React.createElement(HistoryScreen, {
+    history: history,
+    routines: routines,
+    onBack: () => setScreen('home'),
+    onUpdate: (id, u) => setHistory(p => p.map(h => h.id === id ? u : h)),
+    onDelete: id => setHistory(p => p.filter(h => h.id !== id))
+  });
+  if (screen === 'stats') return /*#__PURE__*/React.createElement(StatsScreen, {
+    history: history,
+    onBack: () => setScreen('home')
+  });
+  if (screen === 'transfer') return /*#__PURE__*/React.createElement(TransferScreen, {
+    exLib: exLib,
+    routines: routines,
+    history: history,
+    circuits: circuits,
+    circuitHistory: circuitHistory,
+    onImport: d => {
+      if (d.exLib) setExLib(d.exLib);
+      if (d.routines) setRoutines(d.routines);
+      if (d.history) setHistory(d.history);
+      if (d.circuits) setCircuits(d.circuits);
+      if (d.circuitHistory) setCircuitHistory(d.circuitHistory);
+    },
+    onBack: () => setScreen('home')
+  });
+  if (screen === 'coach') return /*#__PURE__*/React.createElement(CoachScreen, {
+    history: history,
+    profile: profile,
+    routines: routines,
+    exLib: exLib,
+    onBack: () => setScreen('home'),
+    onSaveProfile: p => setProfile(prev => ({
+      ...prev,
+      ...p
+    }))
+  });
+  if (screen === 'profile') return /*#__PURE__*/React.createElement(ProfileScreen, {
+    profile: profile,
+    onSave: p => {
+      setProfile(p);
+      setScreen('home');
+    },
+    onBack: () => setScreen('home')
+  });
+  return /*#__PURE__*/React.createElement(HomeScreen, {
+    routines: routines,
+    history: history,
+    exLib: exLib,
+    resumeDraft: resumeDraft,
+    onStartWorkout: startWorkout,
+    onEditRoutine: r => {
+      setEditRoutine({
+        ...r,
+        exerciseRefs: r.exerciseRefs.map(e => ({
+          ...e
+        }))
+      });
+      setScreen('editRoutine');
+    },
+    onNewRoutine: () => {
+      setEditRoutine({
+        id: window.uid(),
+        name: '',
+        exerciseRefs: []
+      });
+      setScreen('editRoutine');
+    },
+    onNavigate: setScreen,
+    onResumeDraft: () => {
+      setActiveWo(resumeDraft);
+      setScreen('workout');
+    },
+    onClearDraft: () => {
+      window.save(window.SK.draft, null);
+      setResumeDraft(null);
+    },
+    circuits: circuits,
+    onStartCircuit: c => {
+      setActiveCircuit(c);
+      setScreen('circuit');
+    },
+    onEditCircuit: c => {
+      setEditCircuit({
+        ...c,
+        exos: [...c.exos]
+      });
+      setScreen('editCircuit');
+    },
+    onNewCircuit: () => {
+      setEditCircuit({
+        id: window.uid(),
+        name: '',
+        restSec: 90,
+        exos: []
+      });
+      setScreen('editCircuit');
+    }
+  });
+}
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
+})();

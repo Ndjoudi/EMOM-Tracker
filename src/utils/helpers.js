@@ -27,9 +27,36 @@ window.getLastPerf = function(h, n, si) {
   for (const x of h) for (const e of x.exercises) if (e.name === n && e.sets[si] && e.sets[si].done) return e.sets[si];
   return null;
 };
+// Dernière grille pyramide saisie pour cet exercice (la plus récente d'abord).
+// Sert à pré-remplir la grille et à colorer les comparaisons.
+window.getLastPyramid = function(h, n) {
+  for (const x of h) for (const e of x.exercises) if (e.name === n && e.pyGrid && e.pyGrid.length) return e.pyGrid;
+  return null;
+};
+
+// Champs pyramide d'un exercice de séance, à partir d'une config
+// (réf de routine OU exercice de bibliothèque). Renvoie null si non pyramide.
+// Utilisé au démarrage d'une séance et à l'ajout d'un exo en cours de séance,
+// pour que les deux chemins produisent exactement la même structure.
+window.pyramidInit = function(cfg, history, name) {
+  if (!cfg || !cfg.pyramid) return null;
+  const rows = Math.max(1, cfg.pyRows || 3);
+  const cols = Math.max(1, cfg.pyCols || 5);
+  const prev = window.getLastPyramid(history, name);
+  return {
+    pyramid: true, pyRows: rows, pyCols: cols,
+    pyX: cfg.pyX || 60, pyY: cfg.pyY || 120,
+    pyGrid: Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => (prev && prev[r] ? String(prev[r][c] ?? '') : ''))),
+    pyPrev: prev || null,
+  };
+};
 window.getExHist = function(h, n) {
   const r = [];
-  for (const x of h) for (const e of x.exercises) if (e.name === n) r.push({ date: x.date, routineName: x.routineName, sets: e.sets, rm: e.rm });
+  for (const x of h) for (const e of x.exercises) if (e.name === n)
+    // pyramid/pyGrid transportés : sans eux l'historique d'un exo pyramide paraît vide
+    r.push({ date: x.date, routineName: x.routineName, sets: e.sets, rm: e.rm,
+             pyramid: e.pyramid, pyGrid: e.pyGrid, pyRows: e.pyRows, pyCols: e.pyCols });
   return r;
 };
 window.getSessionPerf = function(curSets, prevSets) {
