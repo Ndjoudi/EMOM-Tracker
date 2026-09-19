@@ -9,8 +9,21 @@
 import { readFile, writeFile, mkdir, rm, cp, readdir } from 'node:fs/promises';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { transformAsync } from '@babel/core';
-import presetReact from '@babel/preset-react';
+import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
+
+// Babel est installé HORS du dépôt (cache du Mac), pour que le dossier
+// ne contienne que les fichiers publiés. Installation : npm run setup
+const TOOLS = join(homedir(), 'Library', 'Caches', 'emom-webapp-build');
+let transformAsync, presetReact;
+try {
+  const req = createRequire(join(TOOLS, 'package.json'));
+  ({ transformAsync } = req('@babel/core'));
+  const pr = req('@babel/preset-react'); presetReact = pr.default || pr;
+} catch (e) {
+  console.error('Outils de build absents. Lance d\'abord :  npm run setup');
+  process.exit(1);
+}
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const SRC  = join(ROOT, 'source');

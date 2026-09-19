@@ -4,10 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "setup": "npm install --prefix ~/Library/Caches/emom-webapp-build @babel/core@^7 @babel/preset-react@^7",
     "build": "node scripts/build.mjs"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.24.0",
-    "@babel/preset-react": "^7.23.3"
   }
 }

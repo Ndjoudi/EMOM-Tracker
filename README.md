@@ -44,7 +44,7 @@ L'app s'ouvre alors en plein écran, sans barre de navigateur.
 Les sources sont dans `source/` (JSX). `src/` est **généré** : ne pas l'éditer.
 
 ```
-npm install      # une seule fois
+npm run setup    # une seule fois : installe Babel hors du dépôt
 npm run build    # source/ → src/
 ```
 
