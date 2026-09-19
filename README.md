@@ -41,10 +41,12 @@ L'app s'ouvre alors en plein écran, sans barre de navigateur.
 
 ## Modifier le code
 
-Ce dossier est **généré** : ne pas y éditer les fichiers, ils sont écrasés à
-chaque build. Les sources vivent dans le projet `Emom Track`, et se
-reconstruisent avec :
+Les sources sont dans `source/` (JSX). `src/` est **généré** : ne pas l'éditer.
 
 ```
-npm run site
+npm install      # une seule fois
+npm run build    # source/ → src/
 ```
+
+Nouveau fichier dans `source/` ? Ajouter sa balise `<script>` dans `index.html`.
+`.nojekyll` empêche GitHub Pages de passer le site dans Jekyll.

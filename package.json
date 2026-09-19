@@ -1,0 +1,13 @@
+{
+  "name": "emom-webapp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@babel/preset-react": "^7.23.3"
+  }
+}
