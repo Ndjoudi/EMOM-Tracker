@@ -39,6 +39,10 @@ window.WorkoutScreen = function WorkoutScreen({
   const [gKgWS, setGKgWS] = uSW('');
   const [gRepsWS, setGRepsWS] = uSW('');
   const [gDateWS, setGDateWS] = uSW('');
+  const deadRef = uRW(0),
+    restDeadRef = uRW(0);
+  const [runKey, setRunKey] = uSW(0),
+    [restKey, setRestKey] = uSW(0);
   const iRef = uRW(null),
     tRef = uRW(null),
     avRef = uRW(null),
@@ -53,26 +57,36 @@ window.WorkoutScreen = function WorkoutScreen({
   }, [wsGoals]);
   const ex = wo.exercises[wo.currentExIndex];
   const emomS = ex ? ex.emomTime || 90 : 90;
+  // Durée calculée depuis l'heure de début : continue de courir hors de l'app
   uEW(() => {
-    tRef.current = setInterval(() => setTotalEl(p => p + 1), 1000);
+    const tick = () => setTotalEl(Math.floor((Date.now() - wo.startedAt) / 1000));
+    tick();
+    tRef.current = setInterval(tick, 1000);
     return () => clearInterval(tRef.current);
   }, []);
+
+  // Repos : compte à rebours sur l'heure réelle (restDeadRef), pas sur des ticks
   uEW(() => {
-    if (restOn && restLeft > 0) {
-      restRef.current = setInterval(() => {
-        setRestLeft(p => {
-          if (p <= 1) {
-            clearInterval(restRef.current);
-            setRestOn(false);
-            return 0;
-          }
-          return p - 1;
-        });
-      }, 1000);
-      return () => clearInterval(restRef.current);
-    }
-  }, [restOn, restLeft]);
-  avRef.current = () => {
+    if (!restOn) return;
+    restRef.current = setInterval(() => {
+      const left = Math.max(0, Math.ceil((restDeadRef.current - Date.now()) / 1000));
+      if (left <= 0) {
+        clearInterval(restRef.current);
+        setRestOn(false);
+        setRestLeft(0);
+        window.notify && window.notify('Repos terminé', `${(wo.exercises[wo.currentExIndex] || {}).name || ''} — à toi`);
+        return;
+      }
+      setRestLeft(left);
+    }, 250);
+    return () => clearInterval(restRef.current);
+  }, [restOn, restKey]);
+
+  // Fin d'une série EMOM. endedAt = heure PRÉVUE de fin : la suite s'enchaîne à partir
+  // d'elle, pas de "maintenant". Si l'app était en arrière-plan, les séries écoulées
+  // sont ainsi rattrapées au retour au lieu que le chrono reste figé.
+  avRef.current = endedAt => {
+    const base = endedAt || Date.now();
     setWo(prev => {
       const n = window.dcw(prev);
       const ce = n.exercises[n.currentExIndex];
@@ -81,19 +95,23 @@ window.WorkoutScreen = function WorkoutScreen({
         ce.sets[cs].done = true;
         if (cs + 1 < ce.sets.length) {
           n.currentSet = cs + 1;
-          setTimeout(() => {
-            setTimerLeft(ce.emomTime || 90);
-            setTimerOn(true);
-          }, 300);
+          deadRef.current = base + (ce.emomTime || 90) * 1000;
+          setTimerLeft(Math.max(0, Math.ceil((deadRef.current - Date.now()) / 1000)));
+          setTimerOn(true);
+          setRunKey(k => k + 1);
+          window.notify && window.notify(`${ce.name} — série ${cs + 2}`, "C'est reparti");
         } else {
           if (n.currentExIndex + 1 < n.exercises.length) {
             const restDur = ce.restTime || defaultRest;
             n.currentExIndex += 1;
             n.currentSet = window.fnu(n.exercises[n.currentExIndex]);
             setDefaultRest(restDur);
+            restDeadRef.current = base + restDur * 1000;
             setRestLeft(restDur);
             setRestOn(true);
-          }
+            setRestKey(k => k + 1);
+            window.notify && window.notify(`${ce.name} terminé`, `Repos ${restDur}s`);
+          } else window.notify && window.notify('Séance terminée', ce.name);
           setTimerOn(false);
           setTimerLeft(0);
         }
@@ -101,22 +119,21 @@ window.WorkoutScreen = function WorkoutScreen({
       return n;
     });
   };
+
+  // Série EMOM : même principe, sur deadRef
   uEW(() => {
-    if (timerOn && timerLeft > 0) {
-      iRef.current = setInterval(() => {
-        setTimerLeft(p => {
-          const next = p - 1;
-          if (next <= 0) {
-            clearInterval(iRef.current);
-            avRef.current();
-            return 0;
-          }
-          return next;
-        });
-      }, 1000);
-      return () => clearInterval(iRef.current);
-    }
-  }, [timerOn, timerLeft]);
+    if (!timerOn) return;
+    iRef.current = setInterval(() => {
+      const left = Math.max(0, Math.ceil((deadRef.current - Date.now()) / 1000));
+      if (left <= 0) {
+        clearInterval(iRef.current);
+        avRef.current(deadRef.current);
+        return;
+      }
+      setTimerLeft(left);
+    }, 250);
+    return () => clearInterval(iRef.current);
+  }, [timerOn, runKey]);
 
   // Libère le wake lock en quittant la séance
   uEW(() => () => {
@@ -126,8 +143,11 @@ window.WorkoutScreen = function WorkoutScreen({
   const start = () => {
     window._wantWakeLock = true;
     window.requestWakeLock && window.requestWakeLock();
+    window.requestNotifPermission && window.requestNotifPermission();
+    deadRef.current = Date.now() + emomS * 1000;
     setTimerLeft(emomS);
     setTimerOn(true);
+    setRunKey(k => k + 1);
     if (restOn) {
       clearInterval(restRef.current);
       setRestOn(false);
@@ -145,8 +165,14 @@ window.WorkoutScreen = function WorkoutScreen({
     setTimerOn(false);
     avRef.current();
   };
-  const adj = d => setTimerLeft(p => Math.max(0, p + d));
-  const adjRest = d => setRestLeft(p => Math.max(0, p + d));
+  const adj = d => {
+    deadRef.current = Math.max(Date.now(), deadRef.current + d * 1000);
+    setTimerLeft(Math.ceil((deadRef.current - Date.now()) / 1000));
+  };
+  const adjRest = d => {
+    restDeadRef.current = Math.max(Date.now(), restDeadRef.current + d * 1000);
+    setRestLeft(Math.ceil((restDeadRef.current - Date.now()) / 1000));
+  };
   const skipRest = () => {
     clearInterval(restRef.current);
     setRestOn(false);
@@ -1623,6 +1649,7 @@ window.WorkoutScreen = function WorkoutScreen({
     onClick: () => {
       const v = parseInt(tempV) || 120;
       setDefaultRest(v);
+      restDeadRef.current = Date.now() + v * 1000;
       setRestLeft(v);
       setShowEditRest(false);
     }
