@@ -22,9 +22,31 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Service worker : conservé pour l'installation sur l'écran d'accueil
+// Service worker : requis pour les notifications (et l'installation sur l'écran d'accueil)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
+
+// ─── Notifications de fin de chrono ───
+// Seulement quand l'app n'est pas à l'écran. L'app ne joue aucun son elle-même :
+// la notification suit le réglage du téléphone.
+window.requestNotifPermission = function() {
+  try {
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  } catch (e) {}
+};
+
+window.notify = function(title, body) {
+  try {
+    if (document.visibilityState === 'visible') return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const opts = { body, tag: 'emom-timer', renotify: true, icon: 'icons/icon-192.png' };
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts)).catch(() => {});
+    } else {
+      new Notification(title, opts);
+    }
+  } catch (e) {}
+};

@@ -24,6 +24,7 @@ window.PyramidGrid = function PyramidGrid({ ex, onChange, onDone }) {
 
   const iRef = uRPY(null), rRef = uRPY(null);
   const deadRef = uRPY(null), restDeadRef = uRPY(null);
+  const chainRef = uRPY(null), restChainRef = uRPY(null);   // échéances enchaînées
 
   // ── État d'une case (pilote bordure + fond) ──
   const status = (r, c) => {
@@ -53,12 +54,19 @@ window.PyramidGrid = function PyramidGrid({ ex, onChange, onDone }) {
 
   // ── Avancer d'une case ──
   const advance = uRPY(null);
-  advance.current = () => {
+  // endedAt = heure PRÉVUE de fin : la suite s'enchaîne à partir d'elle, ce qui rattrape
+  // le temps passé hors de l'app. Sans endedAt (bouton Suivant) : maintenant.
+  advance.current = (endedAt) => {
+    const base = endedAt || Date.now();
     const nc = curCol + 1;
     if (nc < cols) {
+      chainRef.current = base + X * 1000;
       setCurCol(nc);
       setTimeLeft(X);
+      window.notify && window.notify(`${ex.name} — série ${nc + 1}`, `Ligne ${curRow + 1}`);
     } else if (curRow + 1 < rows) {
+      restChainRef.current = base + Y * 1000;
+      window.notify && window.notify(`Ligne ${curRow + 1} terminée`, `Repos ${Y}s`);
       setTimerOn(false);
       setTimeLeft(X);
       setCurRow(curRow + 1);
@@ -69,18 +77,20 @@ window.PyramidGrid = function PyramidGrid({ ex, onChange, onDone }) {
       setTimerOn(false);
       setAllDone(true);
       onDone && onDone(true);   // persiste l'état terminé dans la séance
+      window.notify && window.notify('Pyramide terminée', ex.name);
     }
   };
 
   // ── Timer série (horloge murale : résiste au ralentissement en arrière-plan) ──
   uEPY(() => {
     if (!timerOn) return;
-    deadRef.current = Date.now() + timeLeft * 1000;
+    deadRef.current = chainRef.current || Date.now() + timeLeft * 1000;
+    chainRef.current = null;
     iRef.current = setInterval(() => {
-      const n = Math.max(0, Math.round((deadRef.current - Date.now()) / 1000));
+      const n = Math.max(0, Math.ceil((deadRef.current - Date.now()) / 1000));
       if (n <= 0) {
         clearInterval(iRef.current);
-        advance.current();
+        advance.current(deadRef.current);
         return;
       }
       setTimeLeft(n);
@@ -91,11 +101,14 @@ window.PyramidGrid = function PyramidGrid({ ex, onChange, onDone }) {
   // ── Timer repos ──
   uEPY(() => {
     if (!resting) return;
-    restDeadRef.current = Date.now() + restLeft * 1000;
+    restDeadRef.current = restChainRef.current || Date.now() + restLeft * 1000;
+    restChainRef.current = null;
     rRef.current = setInterval(() => {
-      const n = Math.max(0, Math.round((restDeadRef.current - Date.now()) / 1000));
+      const n = Math.max(0, Math.ceil((restDeadRef.current - Date.now()) / 1000));
       if (n <= 0) {
         clearInterval(rRef.current);
+        chainRef.current = restDeadRef.current + X * 1000;
+        window.notify && window.notify(`Ligne ${curRow + 1} — c'est parti`, ex.name);
         setRestLeft(Y);
         setResting(false);
         setTimerOn(true);
@@ -121,6 +134,8 @@ window.PyramidGrid = function PyramidGrid({ ex, onChange, onDone }) {
   const start = () => {
     window._wantWakeLock = true;
     window.requestWakeLock && window.requestWakeLock();
+    window.requestNotifPermission && window.requestNotifPermission();
+    chainRef.current = null;
     setCurRow(0); setCurCol(0); setAllDone(false);
     onDone && onDone(false);
     setTimeLeft(X); setTimerOn(true);

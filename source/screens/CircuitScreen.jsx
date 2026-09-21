@@ -71,17 +71,24 @@ window.CircuitScreen = function CircuitScreen({ circuit, circuitHistory, onFinis
 
   // ── Avancer au prochain exo / série ──
   const advance = uRCS(null);
-  advance.current = () => {
+  // endedAt = heure PRÉVUE de fin de la minute : la suite s'enchaîne à partir d'elle,
+  // ce qui rattrape le temps passé hors de l'app. Sans endedAt (bouton Suivant) : maintenant.
+  advance.current = (endedAt) => {
+    const base = endedAt || Date.now();
     const nextExo = curExo + 1;
     if (nextExo < nbExos) {
+      chainRef.current = base + DURATION * 1000;
       setCurExo(nextExo);
       setTimerLeft(DURATION);
+      window.notify && window.notify(exos[nextExo]?.name || 'Exo suivant', `Série ${curSerie + 1}`);
     } else {
       // Fin de la série → repos
       setTimerOn(false);
       setTimerLeft(DURATION);
       const nextSerie = curSerie + 1;
       if (nextSerie < series.length) {
+        restChainRef.current = base + (circuit.restSec || 90) * 1000;
+        window.notify && window.notify(`Série ${curSerie + 1} terminée`, `Repos ${circuit.restSec || 90}s`);
         setResting(true);
         setRestLeft(circuit.restSec || 90);
         setCurSerie(nextSerie);
@@ -90,6 +97,7 @@ window.CircuitScreen = function CircuitScreen({ circuit, circuitHistory, onFinis
         // Toutes les séries terminées
         setTimerOn(false);
         setAllDone(true);
+        window.notify && window.notify('Circuit terminé', circuit.name);
       }
     }
   };
@@ -98,15 +106,17 @@ window.CircuitScreen = function CircuitScreen({ circuit, circuitHistory, onFinis
   // Basé sur l'horloge murale : si iOS ralentit l'interval en arrière-plan,
   // le temps restant reste juste au lieu de dériver.
   const deadRef = uRCS(null);
+  const chainRef = uRCS(null);        // échéance enchaînée, posée par advance / fin de repos
   uECS(() => {
     if (!timerOn) return;
-    deadRef.current = Date.now() + timerLeft * 1000;
+    deadRef.current = chainRef.current || Date.now() + timerLeft * 1000;
+    chainRef.current = null;
     iRef.current = setInterval(() => {
-      const next = Math.max(0, Math.round((deadRef.current - Date.now()) / 1000));
+      const next = Math.max(0, Math.ceil((deadRef.current - Date.now()) / 1000));
       if (next <= 0) {
         clearInterval(iRef.current);
         setTimerLeft(DURATION);
-        advance.current();
+        advance.current(deadRef.current);
         return;
       }
       setTimerLeft(next);
@@ -116,13 +126,17 @@ window.CircuitScreen = function CircuitScreen({ circuit, circuitHistory, onFinis
 
   // ── Timer repos ── (horloge murale, comme le timer exo)
   const restDeadRef = uRCS(null);
+  const restChainRef = uRCS(null);
   uECS(() => {
     if (!resting) return;
-    restDeadRef.current = Date.now() + restLeft * 1000;
+    restDeadRef.current = restChainRef.current || Date.now() + restLeft * 1000;
+    restChainRef.current = null;
     restRef.current = setInterval(() => {
-      const next = Math.max(0, Math.round((restDeadRef.current - Date.now()) / 1000));
+      const next = Math.max(0, Math.ceil((restDeadRef.current - Date.now()) / 1000));
       if (next <= 0) {
         clearInterval(restRef.current);
+        chainRef.current = restDeadRef.current + DURATION * 1000;
+        window.notify && window.notify(`Série ${curSerie + 1} — c'est parti`, exos[0]?.name || '');
         setRestLeft(circuit.restSec || 90);
         setResting(false);
         setTimerOn(true);
@@ -135,7 +149,9 @@ window.CircuitScreen = function CircuitScreen({ circuit, circuitHistory, onFinis
 
   // ── Timer total ──
   uECS(() => {
-    elRef.current = setInterval(() => setTotalEl(p => p + 1), 1000);
+    // Sur l'heure réelle : continue de courir hors de l'app
+    const t0 = Date.now();
+    elRef.current = setInterval(() => setTotalEl(Math.floor((Date.now() - t0) / 1000)), 1000);
     return () => clearInterval(elRef.current);
   }, []);
 
@@ -149,6 +165,8 @@ window.CircuitScreen = function CircuitScreen({ circuit, circuitHistory, onFinis
     // Garde l'écran allumé pendant le circuit
     window._wantWakeLock = true;
     window.requestWakeLock && window.requestWakeLock();
+    window.requestNotifPermission && window.requestNotifPermission();
+    chainRef.current = null;
     setCurSerie(0); setCurExo(0);
     setTimerLeft(DURATION); setTimerOn(true);
   };
